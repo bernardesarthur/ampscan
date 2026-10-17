@@ -15,4 +15,6 @@ pub mod scanner;
 pub mod sys_limits;
 /// Interactive Terminal UI
 pub mod tui;
+/// Command Line Interface
+pub mod cli;
 

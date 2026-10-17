@@ -263,10 +263,76 @@ Below is the complete list of standard command-line instructions to manually and
 
 ---
 
+## 🗺️ Project Architecture & Structural Map
+
+AmpScan is structured into modular Rust modules adhering strictly to the **Single Responsibility Principle (SRP)**:
+
+```text
+ampscan/
+├── Cargo.toml                  # Package manifest, dependencies, and platform configurations
+├── CHANGELOG.md                # Project version history and detailed modification log
+├── README.md                   # User guide, documentation, and architecture manual
+├── src/
+│   ├── main.rs                 # CLI entrypoint, banner, and command dispatcher (~96 lines)
+│   ├── lib.rs                  # Library root and public module exports
+│   ├── auth.rs                 # Argon2id password hashing and secure CLI prompt helpers
+│   ├── sys_limits.rs           # OS file descriptor limit management (ulimit)
+│   │
+│   ├── cli/                    # Command-line interface layer
+│   │   ├── args.rs             # Clap parser definitions (Cli, Commands, subcommands)
+│   │   ├── auth_helper.rs      # Database unlocking, key zeroization & user authentication
+│   │   ├── mod.rs              # Re-exports and string helpers
+│   │   └── commands/           # Isolated subcommand handlers
+│   │       ├── init.rs         # Database schema creation and initial admin setup
+│   │       ├── port.rs         # Port listing, enabling, and disabling
+│   │       ├── prefix.rs       # Network prefix (CIDR) management
+│   │       ├── scan.rs         # Network scan execution and terminal table formatting
+│   │       └── user.rs         # Administrative user management
+│   │
+│   ├── db/                     # Encrypted database layer (SQLCipher AES-256)
+│   │   ├── mod.rs              # Connection management, WAL mode, migrations, and lock helpers
+│   │   ├── models.rs           # Relational structs (Port, Prefix, User)
+│   │   ├── default_ports.rs    # Static definitions of 23 amplification ports and payloads
+│   │   ├── port_repo.rs        # SQL CRUD transactions for ports
+│   │   ├── prefix_repo.rs      # SQL CRUD transactions for CIDR prefixes
+│   │   └── user_repo.rs        # User creation, authentication, and password updates
+│   │
+│   ├── scanner/                # High-concurrency network scanning engine
+│   │   ├── mod.rs              # Concurrency semaphore (acquire-before-spawn) & IP expansion
+│   │   ├── result.rs           # ScanReport, PortStatus, and ProbeResult models
+│   │   └── probes/             # Low-level network probing
+│   │       ├── transport.rs    # Connected UDP/TCP sockets, timeouts, and FD exhaustion detection
+│   │       ├── validate.rs     # Protocol inspection, Transaction ID check, and IP nibble filter
+│   │       ├── payloads.rs     # Protocol binary payload generators and 13 unit tests
+│   │       └── mod.rs          # Probe dispatcher (execute_probe)
+│   │
+│   ├── report/                 # Executive PDF report generator (printpdf)
+│   │   ├── config.rs           # AppConfig, CompanyConfig, and config.toml resolution
+│   │   ├── writer.rs           # A4 document writer, font metrics, and coordinate management
+│   │   ├── text.rs             # WinAnsi character sanitization and text/command wrapping
+│   │   ├── procedures.rs       # Manual verification commands dictionary for 23 ports
+│   │   └── mod.rs              # High-level PDF section orchestrator (generate_pdf)
+│   │
+│   └── tui/                    # Interactive Terminal User Interface (Ratatui & Crossterm)
+│       ├── mod.rs              # Alternate screen lifecycle and 60 FPS event loop
+│       ├── app.rs              # Reactive application state and metrics indexing
+│       ├── events.rs           # Keyboard event capture and input filtering
+│       └── ui/                 # Modular tab view components
+│           ├── mod.rs          # Layout orchestration, tabs header, and hotkey footer
+│           ├── dashboard.rs    # Real-time scan gauge, metrics, and live activity table
+│           ├── results.rs      # Split screen (68% findings table / 32% port statistics)
+│           ├── cidr_scan.rs    # Subnet prefixes table
+│           ├── single_target.rs# Reactive single-host inspection form
+│           ├── port_database.rs# Registered amplification signatures table
+│           └── settings.rs     # Runtime concurrency and timeout controls
+```
+
+---
+
 ## 🚀 CI/CD & Release Automation (Codeberg)
 
 This repository supports build and test automation via **Woodpecker CI** hosted on Codeberg:
 
 * **Continuous Integration (CI):** On every `push` or `pull_request` sent to the `main` branch, the complete unit and integration test suite is executed automatically (with parallelism limited to `-j 1` to respect Codeberg's shared resource guidelines).
-* **Continuous Delivery (CD):** When creating and pushing a version tag (e.g., `v1.4.7`), the pipeline compiles the binary (`ampscan`) in production mode (Release) for Linux x86_64, compresses it into a `.tar.gz` file, and attaches the final file directly to the Releases page on Codeberg.
+* **Continuous Delivery (CD):** When creating and pushing a version tag (e.g., `v1.4.8`), the pipeline compiles the binary (`ampscan`) in production mode (Release) for Linux x86_64, compresses it into a `.tar.gz` file, and attaches the final file directly to the Releases page on Codeberg.
 

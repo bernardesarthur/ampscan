@@ -1,0 +1,65 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.4.8] - 2026-10-17
+
+### Changed
+- **Architectural Modularization & Decoupling**:
+  - Refactored large monolithic source files into clean, domain-driven submodules with strict Single Responsibility Principle (SRP):
+    - `src/main.rs` (reduced from 913 to 96 lines): Trimmed into a clean entrypoint and command dispatcher. CLI argument schemas, authentication helpers, and subcommand handlers moved to `src/cli/` (`args.rs`, `auth_helper.rs`, and `commands/`).
+    - `src/report.rs` (860 lines) decomposed into `src/report/`:
+      - `config.rs`: `AppConfig`, `CompanyConfig`, and configuration loader.
+      - `writer.rs`: `PdfWriter` primitives, layout constants, and cursor coordination.
+      - `text.rs`: Transliteration (`sanitize`), command and text wrapping with dedicated unit tests.
+      - `procedures.rs`: Protocol-to-CLI manual verification command dictionary (`get_manual_command`).
+      - `mod.rs`: High-level executive report orchestrator (`generate_pdf`).
+    - `src/scanner/probes.rs` (856 lines) decomposed into `src/scanner/probes/`:
+      - `transport.rs`: Low-level connected socket networking (`send_udp_probe`, `execute_tcp_probe`) and file descriptor exhaustion detection.
+      - `validate.rs`: Protocol response validators, Transaction ID validation, and IP version reflection filters (`0x4x`/`0x6x`).
+      - `payloads.rs`: All 13 protocol binary payload constructors and comprehensive unit tests.
+      - `mod.rs`: Main probe execution dispatcher (`execute_probe`).
+    - `src/tui/ui.rs` (560 lines) decomposed into `src/tui/ui/`:
+      - Dedicated view components for each tab: `dashboard.rs`, `results.rs` (with 68%/32% split), `cidr_scan.rs`, `single_target.rs`, `port_database.rs`, and `settings.rs`.
+      - `mod.rs`: Frame orchestrator, tabs header, and hotkey footer.
+    - `src/db/port_repo.rs` (reduced from 274 to 136 lines):
+      - Isolated static definition of 23 amplification ports into `src/db/default_ports.rs`, leaving `port_repo.rs` focused strictly on SQL CRUD operations.
+  - Zero functional regressions or breaking API changes: all public interfaces re-exported via `pub use`.
+
+## [1.4.7] - 2026-08-23
+
+### Added
+- **Shadowserver & CISA Amplification Vectors**:
+  - **MS-RDPEUDP (`3389/udp`)**: Added SYN datagram probe construction (`RDPUDP_FLAG_SYN 0x0001` + `snSourcePackets` + `uUpStreamMtu`), testing for volumetric amplification up to 85.9x.
+  - **SIP (`5060/udp`)**: Added RFC 3261-compliant `OPTIONS` ping probe to detect exposed PBX/VoIP systems vulnerable to 15x–30x reflection and brute-force scanning.
+  - Expanded amplification vector coverage to **23 ports** (21 UDP and 2 TCP).
+  - Added CLI manual validation commands (`printf` + `nc` + `xxd`) for `MS-RDPEUDP` and `SIP` to PDF executive reports.
+
+## [1.4.6] - 2026-08-11
+
+### Optimized
+- **TUI Performance & CPU Usage**:
+  - Reduced Results Viewer rendering complexity from $O(42N)$ to **$O(1)$ constant time** using indexed `filtered_log_indices` and `port_stats` hash maps.
+  - Capped frame rate at 60 FPS (16ms rest between ticks), reducing idle CPU usage from ~100% to ~1–3%.
+  - Batch event processing (up to 2,000 events/tick) on `mpsc` queue for fluid rendering and keyboard responsiveness under high concurrency scans.
+- **Results Viewer Redesign**:
+  - Horizontal split layout: 68% scrollable verified findings table and 32% live `Port Statistics` panel with real-time `VULNERABLE` and `Open/Protected` counters.
+
+## [1.4.5] - 2026-08-10
+
+### Fixed
+- **Target Scan Input Handling**:
+  - Fixed keyboard event handling so `s`/`S` and `q`/`Q`/`Esc` keys trigger actions without corrupting the target IP text input.
+  - Added strict input character filtering allowing only valid IP/CIDR characters.
+  - Added automatic fallback to `/32` (IPv4) and `/128` (IPv6) for standalone IP targets in subnet scanner.
+
+## [1.4.4] - 2026-08-08
+
+### Fixed
+- **Network Engine & Dual-Stack Resiliency**:
+  - Implemented connected UDP sockets (`socket.connect`) for IPv4 and IPv6 to filter responses strictly by `(ip, port)` tuple at the Linux kernel level.
+  - Added IP version signature filters (`0x4x` / `0x6x`) to eliminate false positives from ICMP/ICMPv6 error reflection under high concurrency.
+  - Removed static 1000ms latency cap, allowing scans to honor configured probe timeouts dynamically.
